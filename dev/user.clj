@@ -1,5 +1,6 @@
 (ns user
   (:require [canto.server]
+            [canto.utils]
             [ring.middleware.reload :refer [wrap-reload]]
             [figwheel-sidecar.repl-api :as figwheel]))
 
