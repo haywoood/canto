@@ -1,6 +1,6 @@
 (ns user
   (:require [canto.server]
-            [canto.utils]
+            [canto.utils :refer [reset-db]]
             [ring.middleware.reload :refer [wrap-reload]]
             [figwheel-sidecar.repl-api :as figwheel]))
 
@@ -9,10 +9,12 @@
 ;; degraded performance.
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
 (def http-handler
   (wrap-reload #'canto.server/http-handler))
 
 (defn run []
+  (reset-db)
   (figwheel/start-figwheel!))
 
 (def browser-repl figwheel/cljs-repl)
