@@ -9,13 +9,18 @@
             [canto.db :as db]
             [cognitect.transit :as t]
             [datomic.api :as d]
-            [om.next :as om])
+            [om.next.server :as om])
   (:gen-class))
 
 (defmulti readf (fn [_ k _] k))
 
-(defmethod readf :customers/-id [env k params]
-  {:value 0#_(db/get-customers-by-id (:db env))})
+(defmethod readf :poems/list
+  [{:keys [db query]} k params]
+  {:value (run-query query :poem/name db)})
+
+(defmethod readf :default
+  [_ k _]
+  (swap! debug conj k))
 
 (defn generate-response [data & [status]]
   (let [out (ByteArrayOutputStream. 4096)
@@ -29,18 +34,21 @@
   (defn om-next-query-resource [parser env body]
     (generate-response (parser env body))))
 
-(def debug (atom nil))
+(def debug (atom []))
 
-(defn run-query [query db]
-  (d/q `[~':find (~'pull ~'?e ~query)
-         ~':where [~'?e ~':poem/name]]
-    db))
+(defn run-query [query entity-key db]
+  (first
+    (d/q `[~':find (~'pull ~'?e ~query)
+           ~':where [~'?e ~entity-key]]
+      db)))
 
 (defroutes routes
   (POST "/props"
     {body :body}
-    (let [query (:poems (first (t/read (t/reader body :json))))
-          result {:poems (first (into [] (run-query query (db/db))))}]
+    (let [parser (om/parser {:read readf})
+          env {:db (db/db)}
+          query (t/read (t/reader body :json))
+          result (parser env query)]
       (generate-response result)))
   (GET "/" _
     {:status 200
