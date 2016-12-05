@@ -18,6 +18,10 @@
   [{:keys [db query]} k params]
   {:value (run-query query :poem/name db)})
 
+(defmethod readf :selected/poem
+  [{:keys [db query]} k params]
+  {:value (first (run-query query :poem/name db))})
+
 (defmethod readf :default
   [_ k _]
   (swap! debug conj k))
