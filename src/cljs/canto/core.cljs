@@ -72,8 +72,7 @@
   Object
   (render [this]
     (let [{:keys [selected/poem]} (om/props this)
-          list (select-keys (om/props this) [:poems/list])
-          _ (cljs.pprint/pprint poem)]
+          list (select-keys (om/props this) [:poems/list])]
       (dom/div #js {:style #js {:display "flex" :flex 1}}
         (poem-list list)
         (poem-view poem)))))
@@ -135,7 +134,13 @@
                                 :send send
                                 :normalize true
                                 :parser (om/parser {:read read :mutate mutate})
-                                :remotes [:selected/poem :poems/list]}))
+                                :remotes [:selected/poem :poems/list]
+                                :merge-tree (fn deep-merge [a b]
+                                              (merge-with (fn [x y]
+                                                            (if (map? y)
+                                                              (deep-merge x y)
+                                                              y))
+                                                 a b))}))
 
 (om/add-root! reconciler CantoApp (gdom/getElement "app"))
 
@@ -143,4 +148,28 @@
   (cljs.pprint/pprint (deref (om/app-state reconciler)))
   (cljs.pprint/pprint (deref dbg))
   (cljs.pprint/pprint (om/tree->db CantoApp @dbg true))
-  (cljs.pprint/pprint (-> reconciler :state deref :root)))
+  (cljs.pprint/pprint (-> reconciler :state deref :root))
+  (def state {:om.next/tables #{:poems/by-name}
+                  :poems/list
+                  [[:poems/by-name "coke's in the eyes of the be.holder"]
+                   [:poems/by-name "black crows die"]]
+                  :poems/by-name
+                  {"coke's in the eyes of the be.holder"
+                   {:poem/name "coke's in the eyes of the be.holder"}
+                   "black crows die" {:poem/name "black crows die"}}})
+
+  (def response {:selected/poem
+                 {:poem/name "black crows die",
+                  :poem/cantos
+                  [{:canto/text "if you could try and believe, even for 1 sec",
+                    :canto/position 0}
+                   {:canto/text
+                    "you would see, the coastal maine sea, awash in silence",
+                    :canto/position 1}
+                   {:canto/text
+                    "your body would ache for the luke warm breeze, the light belts out",
+                    :canto/position 2}]}})
+
+  (def norma (om/tree->db CantoApp response true))
+
+  (cljs.pprint/pprint (merge state norma)))

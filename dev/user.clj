@@ -20,4 +20,5 @@
 (def browser-repl figwheel/cljs-repl)
 
 (comment
-  (browser-repl))
+  (browser-repl)
+  (run))
