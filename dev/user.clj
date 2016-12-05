@@ -18,3 +18,6 @@
   (figwheel/start-figwheel!))
 
 (def browser-repl figwheel/cljs-repl)
+
+(comment
+  (browser-repl))

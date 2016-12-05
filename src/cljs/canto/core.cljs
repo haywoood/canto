@@ -97,12 +97,13 @@
       {:poems/list true})))
 
 (defmethod read :selected/poem
-  [{:keys [state query]} k params]
+  [{:keys [state ast query]} k params]
   (let [st @state]
     (if-let [poem-ref (get st k)]
-      (let [poem (get-in st poem-ref)]
+      (let [poem (get-in st poem-ref)
+            query_ [`({:selected/poem ~query} {:poem/name ~(:poem/name poem)})]]
         (if (nil? (:poem/cantos poem))
-          {:selected/poem true}
+          {:selected/poem (om/query->ast query_)}
           {:value (om/db->tree query poem st)})))))
 
 (defmethod read :default [env k params]
@@ -113,7 +114,9 @@
 
 (defn send [m cb]
   (let [remote-key (first (keys m))
-        query (remote-key m)]
+        query (case remote-key
+                :selected/poem (first (remote-key m))
+                (remote-key m))]
     (doto (new js/XMLHttpRequest)
           (.open "POST" "/props")
           (.setRequestHeader "Content-Type" "application/transit+json")
@@ -131,12 +134,6 @@
 (def reconciler (om/reconciler {:state app-state
                                 :send send
                                 :normalize true
-                                :merge (fn [reconciler state res query]
-                                        {:keys    (into [] (remove symbol?) (keys res))
-                                         :next    (om/merge-novelty! reconciler state res query)
-                                         :tempids (->> (filter (comp symbol? first) res)
-                                                    (map (comp :tempids second))
-                                                    (reduce merge {}))})
                                 :parser (om/parser {:read read :mutate mutate})
                                 :remotes [:selected/poem :poems/list]}))
 

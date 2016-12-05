@@ -12,6 +12,18 @@
             [om.next.server :as om])
   (:gen-class))
 
+(def dbg (atom nil))
+
+(deref dbg)
+
+(defn run-query [query entity-key db]
+  (mapv first
+    (d/q `[~':find (~'pull ~'?e ~query)
+           ~':where [~'?e ~entity-key]]
+      db)))
+
+(comment (map first (run-query [:poem/name {:poem/cantos [:canto/text]}] :poem/name (db/db))))
+
 (defmulti readf (fn [_ k _] k))
 
 (defmethod readf :poems/list
@@ -19,12 +31,10 @@
   {:value (run-query query :poem/name db)})
 
 (defmethod readf :selected/poem
-  [{:keys [db query]} k params]
-  {:value (first (run-query query :poem/name db))})
-
-(defmethod readf :default
-  [_ k _]
-  (swap! debug conj k))
+  [{:keys [db query]} k {:keys [poem/name]}]
+  {:value (ffirst (d/q `[~':find (~'pull ~'?e ~query)
+                         ~':where [~'?e ~':poem/name ~name]]
+                    db))})
 
 (defn generate-response [data & [status]]
   (let [out (ByteArrayOutputStream. 4096)
@@ -34,24 +44,13 @@
      :headers {"Content-Type" "application/transit+msgpack, application/transit+json;q=0.9"}
      :body (.toString out)}))
 
-(comment
-  (defn om-next-query-resource [parser env body]
-    (generate-response (parser env body))))
-
-(def debug (atom []))
-
-(defn run-query [query entity-key db]
-  (first
-    (d/q `[~':find (~'pull ~'?e ~query)
-           ~':where [~'?e ~entity-key]]
-      db)))
-
 (defroutes routes
   (POST "/props"
     {body :body}
     (let [parser (om/parser {:read readf})
           env {:db (db/db)}
           query (t/read (t/reader body :json))
+          _ (reset! dbg query)
           result (parser env query)]
       (generate-response result)))
   (GET "/" _
@@ -68,9 +67,3 @@
 (defn -main [& [port]]
   (let [port (Integer. (or port 10555))]
     (run-jetty http-handler {:port port :join? false})))
-
-
-(comment
-  (deref debug)
-  (db/db)
-  (t/read (t/reader @debug :json)))
