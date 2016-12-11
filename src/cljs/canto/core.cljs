@@ -1,7 +1,11 @@
 (ns canto.core
-  (:require [goog.dom :as gdom]
+  (:require [clojure.test.check.generators]
+            [goog.dom :as gdom]
             [om.next :as om :refer-macros [defui]]
             [om.dom :as dom]
+            [clojure.spec :as s]
+            [clojure.spec.test :as st]
+            [clojure.pprint :refer [pprint]]
             [canto.reconciler :refer [reconciler]]))
 
 (enable-console-print!)
@@ -65,21 +69,46 @@
 
 (def poem-list (om/factory PoemList))
 
+(comment
+  (let [e @dbg]
+    (aget e "key")))
+
+(defui Toolbar
+  static om/IQuery
+  (query [this]
+         [[:show-new-poem-input '_]])
+  Object
+  (render [this]
+          (let [show-new-poem-input (:show-new-poem-input (om/props this))]
+            (dom/div #js {:className "Toolbar-wrap"}
+                    (dom/div #js {:onClick #(om/transact! reconciler '[(poem/new)])}
+                             (if show-new-poem-input "cancel" "add new poem"))
+                    (if show-new-poem-input
+                      (dom/input #js {:placeholder "poem title"
+                                      :onKeyDown (fn [e]
+                                                  (let [key (.-keyCode e)
+                                                        value (-> e .-target .-value)]
+                                                    (if (= key 13)
+                                                      (om/transact! this [`(poem/create {:name ~value})]))))}))))))
+
+(def toolbar-view (om/factory Toolbar))
+
 (defui CantoApp
   static om/IQuery
   (query [this]
-    [{:poems/list (om/get-query PoemList)}
-     {:selected/poem (om/get-query Poem)}])
+         [{:toolbar (om/get-query Toolbar)}
+          {:poems/list (om/get-query PoemList)}
+          {:selected/poem (om/get-query Poem)}])
 
   Object
   (render [this]
-    (let [{:keys [selected/poem]} (om/props this)
-          list (select-keys (om/props this) [:poems/list])]
-      (dom/div #js {:className "CantoContainer"}
-        (poem-view poem)
-        (poem-list list)))))
+          (let [{:keys [selected/poem toolbar]} (om/props this)
+                _ (println (om/props this))
+                list (select-keys (om/props this) [:poems/list])]
+            (dom/div #js {:className "CantoContainer"}
+                     (toolbar-view toolbar)
+                     (poem-view poem)
+                     (poem-list list)))))
 
 
 (om/add-root! reconciler CantoApp (gdom/getElement "app"))
-
-(comment)
