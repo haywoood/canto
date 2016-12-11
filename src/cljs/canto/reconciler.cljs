@@ -7,6 +7,14 @@
 
 (defmulti mutate om/dispatch)
 
+(defmethod mutate 'poem/create
+  [env k params]
+  {:remote true})
+
+(defmethod mutate 'poem/new
+  [{:keys [state]} k params]
+  {:action #(swap! state update :show-new-poem-input not)})
+
 (defmethod mutate 'poem/select!
   [{:keys [state]} k {:keys [poem-ref]}]
   #_(reset! dbg [state poem-ref])
@@ -31,11 +39,9 @@
           {:selected/poem (om/query->ast query_)}
           {:value (om/db->tree query poem st)})))))
 
-(defmethod read :default [env k params]
+(defmethod read :toolbar [env k params]
   (let [st @(:state env)]
-    (if-let [v (get st k)]
-      {:value v}
-      {:remote true})))
+    {:value (om/db->tree (:query env) (get st k) st)}))
 
 (defn send [m cb]
   (let [remote-key (first (keys m))
@@ -56,11 +62,11 @@
                       :selected/poem response)))))
           (.send (t/write (om/writer) query)))))
 
-(def reconciler (om/reconciler {:state (atom nil)
+(def reconciler (om/reconciler {:state {:show-new-poem-input false}
                                 :send send
                                 :normalize true
                                 :parser (om/parser {:read read :mutate mutate})
-                                :remotes [:selected/poem :poems/list]
+                                :remotes [:selected/poem :poems/list :remote]
                                 :merge-tree (fn deep-merge [a b]
                                               (merge-with (fn [x y]
                                                             (if (map? y)
