@@ -7,14 +7,13 @@
             [ring.middleware.gzip :refer [wrap-gzip]]
             [ring.adapter.jetty :refer [run-jetty]]
             [canto.db :as db]
+            [clojure.walk :as walk]
             [cognitect.transit :as t]
             [datomic.api :as d]
             [om.next.server :as om])
   (:gen-class))
 
 (def dbg (atom nil))
-
-(deref dbg)
 
 (defn run-query [query entity-key db]
   (mapv first
@@ -23,6 +22,21 @@
       db)))
 
 (comment (map first (run-query [:poem/name {:poem/cantos [:canto/text]}] :poem/name (db/db))))
+
+(defmulti mutate om/dispatch)
+
+(comment
+  (deref dbg))
+
+(defmethod mutate 'poem/create
+  [{:keys [db conn]} k {:keys [name cantos]}]
+  (reset! dbg name)
+  {:value {:keys [:poems/list]}
+   :action (fn []
+             @(d/transact conn
+                          [{:db/id (d/tempid :db.part/user)
+                            :poem/name name
+                            :poem/cantos (or cantos [])}]))})
 
 (defmulti readf (fn [_ k _] k))
 
@@ -47,12 +61,16 @@
 (defroutes routes
   (POST "/props"
     {body :body}
-    (let [parser (om/parser {:read readf})
-          env {:db (db/db)}
+    (let [parser (om/parser {:read readf :mutate mutate})
+          env {:db (db/db) :conn (db/get-conn)}
           query (t/read (t/reader body :json))
-          _ (reset! dbg query)
-          result (parser env query)]
-      (generate-response result)))
+          data (parser env query)
+          data' (walk/postwalk (fn [x]
+                                (if (and (sequential? x) (= :result (first x)))
+                                  [(first x) (dissoc (second x) :db-before :db-after :tx-data)]
+                                  x))
+                               data)]
+      (generate-response data')))
   (GET "/" _
     {:status 200
      :headers {"Content-Type" "text/html; charset=utf-8"}
